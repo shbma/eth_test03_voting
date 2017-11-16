@@ -1,4 +1,4 @@
-pragma solidity ^0.4.11;
+pragma solidity ^0.4.8;
 
 /// @title Voting with delegation.
 contract Ballot {
@@ -52,7 +52,9 @@ contract Ballot {
         // и вернет все к исходному состоянияю, а также
         // все Эфиры по прежним адресам.
         // Но будте осторожны - в этом случае сгорит весь имеющийся газ.
-        require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
+        if ( !((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0)) ){
+          throw;
+        }
         voters[voter].weight = 1;
     }
 
@@ -60,10 +62,10 @@ contract Ballot {
     function delegate(address to) {
         // присваевает ссылку
         Voter storage sender = voters[msg.sender];
-        require(!sender.voted);
+        if (sender.voted) { throw; }
 
         // Делегировать самому себе запрещено.
-        require(to != msg.sender);
+        if (to == msg.sender){ throw; }
 
         // Передает право голоса дальше, если `to` уже делегирован кому-то.
         // Вообще, такие петли очень опасны,
@@ -75,7 +77,7 @@ contract Ballot {
             to = voters[to].delegate;
 
             // Мы обнаружили зацикливание - это недопустимо
-            require(to != msg.sender);
+            if (to == msg.sender){ throw; }
         }
 
         // Поскольку `sender` является ссылкой, конструкция ниже
@@ -98,7 +100,7 @@ contract Ballot {
     /// за кандидата номер proposal по имени `proposals[proposal].name`.
     function vote(uint proposal) {
         Voter storage sender = voters[msg.sender];
-        require(!sender.voted);
+        if (sender.voted) { throw; }
         sender.voted = true;
         sender.vote = proposal;
 
