@@ -11,7 +11,7 @@ var Migrations = artifacts.require("./Migrations.sol");
 module.exports = function(deployer, network, addresses) {
   const config = TruffleConfig.networks[network];
 
-  if (personal.account_password) {
+  if (network !== 'development') {
     const web3 = new Web3(new Web3.providers.HttpProvider('http://' + config.host + ':' + config.port));
 
     console.log('>> Unlocking account ' + config.from);
