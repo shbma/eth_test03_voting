@@ -1,8 +1,10 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.11;
 
 /// @title Voting with delegation.
 contract Ballot {
-    // Голосущий
+    // This declares a new complex type which will
+    // be used for variables later.
+    // It will represent a single voter.
     struct Voter {
         uint weight; // weight is accumulated by delegation
         bool voted;  // if true, that person already voted
@@ -10,7 +12,7 @@ contract Ballot {
         uint vote;   // index of the voted proposal
     }
 
-    // Кандидат
+    // This is a type for a single proposal.
     struct Proposal {
         bytes32 name;   // short name (up to 32 bytes)
         uint voteCount; // number of accumulated votes
@@ -18,26 +20,25 @@ contract Ballot {
 
     address public chairperson;
 
-    // Переменная, хранящая состояние:
-    // отображение `Voter` на всевозможные адреса.
+    // This declares a state variable that
+    // stores a `Voter` struct for each possible address.
     mapping(address => Voter) public voters;
 
-    // Динамический массив структур Кандидатов.
+    // A dynamically-sized array of `Proposal` structs.
     Proposal[] public proposals;
 
-    /// Создает новое голосование по выбору одного кандидита
-    /// из массива имен кадидатов `proposalNames`.
+    /// Create a new ballot to choose one of `proposalNames`.
     function Ballot(bytes32[] proposalNames) {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
 
-        // Для каждого имени во входном массиве
-        // создает новый объект-кандидат и дописывает его
-        // в конец массива
+        // For each of the provided proposal names,
+        // create a new proposal object and add it
+        // to the end of the array.
         for (uint i = 0; i < proposalNames.length; i++) {
-            // `Proposal({...})` создает временный объект Proposal
-            //  and `proposals.push(...)`
-            //  добавляет его в конец `proposals`.
+            // `Proposal({...})` creates a temporary
+            // Proposal object and `proposals.push(...)`
+            // appends it to the end of `proposals`.
             proposals.push(Proposal({
                 name: proposalNames[i],
                 voteCount: 0
@@ -45,72 +46,76 @@ contract Ballot {
         }
     }
 
-    // Дает право адресу `voter` голосовать на этих выборах.
-    // Может быть вызвана только `председателем`.
+    // Give `voter` the right to vote on this ballot.
+    // May only be called by `chairperson`.
     function giveRightToVote(address voter) {
-        // Если аргумент `require` ложь, то она остановит выполнение
-        // и вернет все к исходному состоянияю, а также
-        // все Эфиры по прежним адресам.
-        // Но будте осторожны - в этом случае сгорит весь имеющийся газ.
-        if ( !((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0)) ){
-          throw;
-        }
+        // If the argument of `require` evaluates to `false`,
+        // it terminates and reverts all changes to
+        // the state and to Ether balances. It is often
+        // a good idea to use this if functions are
+        // called incorrectly. But watch out, this
+        // will currently also consume all provided gas
+        // (this is planned to change in the future).
+        require((msg.sender == chairperson) && !voters[voter].voted && (voters[voter].weight == 0));
         voters[voter].weight = 1;
     }
 
-    /// Передает право голоса другому адресу `to`.
+    /// Delegate your vote to the voter `to`.
     function delegate(address to) {
-        // присваевает ссылку
+        // assigns reference
         Voter storage sender = voters[msg.sender];
-        if (sender.voted) { throw; }
+        require(!sender.voted);
 
-        // Делегировать самому себе запрещено.
-        if (to == msg.sender){ throw; }
+        // Self-delegation is not allowed.
+        require(to != msg.sender);
 
-        // Передает право голоса дальше, если `to` уже делегирован кому-то.
-        // Вообще, такие петли очень опасны,
-        // т.к. могут крутиться долго и сжечь весь газ в блоке.
-        // В этом случае передача права голоса не произойдет,
-        // но в других ситуациях все может закончится полным
-        // зависанием контракта.
+        // Forward the delegation as long as
+        // `to` also delegated.
+        // In general, such loops are very dangerous,
+        // because if they run too long, they might
+        // need more gas than is available in a block.
+        // In this case, the delegation will not be executed,
+        // but in other situations, such loops might
+        // cause a contract to get "stuck" completely.
         while (voters[to].delegate != address(0)) {
             to = voters[to].delegate;
 
-            // Мы обнаружили зацикливание - это недопустимо
-            if (to == msg.sender){ throw; }
+            // We found a loop in the delegation, not allowed.
+            require(to != msg.sender);
         }
 
-        // Поскольку `sender` является ссылкой, конструкция ниже
-        // изменяет `voters[msg.sender].voted`
+        // Since `sender` is a reference, this
+        // modifies `voters[msg.sender].voted`
         sender.voted = true;
         sender.delegate = to;
         Voter storage delegate = voters[to];
         if (delegate.voted) {
-            // Если представитель уже проголосовал,
-            // вручную добавим его голос к кол-ву голосов за его кандидита
+            // If the delegate already voted,
+            // directly add to the number of votes
             proposals[delegate.vote].voteCount += sender.weight;
         } else {
-            // Если представитель еще не проголосовал,
-            // увеличим на единичку вес его голоса.
+            // If the delegate did not vote yet,
+            // add to her weight.
             delegate.weight += sender.weight;
         }
     }
 
-    /// Отдать голос (включая все голоса, доверенные тебе)
-    /// за кандидата номер proposal по имени `proposals[proposal].name`.
+    /// Give your vote (including votes delegated to you)
+    /// to proposal `proposals[proposal].name`.
     function vote(uint proposal) {
         Voter storage sender = voters[msg.sender];
-        if (sender.voted) { throw; }
+        require(!sender.voted);
         sender.voted = true;
         sender.vote = proposal;
 
-        // Если номер `proposal` указывает за пределы массива,
-        // автоматически вылетаем и откатываем все изменения.
+        // If `proposal` is out of the range of the array,
+        // this will throw automatically and revert all
+        // changes.
         proposals[proposal].voteCount += sender.weight;
     }
 
-    /// @dev Высчитывает победителя, учитывая всех проголосовавших
-    /// к данному моменту.
+    /// @dev Computes the winning proposal taking all
+    /// previous votes into account.
     function winningProposal() constant
             returns (uint winningProposal)
     {
@@ -123,8 +128,9 @@ contract Ballot {
         }
     }
 
-    // Вызывает функцию winningProposal(), чтобы получить позицию
-    // выигравшего кандидата и затем возвращает имя победителя
+    // Calls winningProposal() function to get the index
+    // of the winner contained in the proposals array and then
+    // returns the name of the winner
     function winnerName() constant
             returns (bytes32 winnerName)
     {

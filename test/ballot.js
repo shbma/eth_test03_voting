@@ -1,29 +1,30 @@
 var Ballot = artifacts.require("./Ballot.sol");
 
-contract('Ballot', function(account) {
-  var contractAddress;
+contract('Ballot', function(accounts) {
+  var citizen1 = accounts[1];
+  var citizen2 = accounts[2];
+  var citizen3 = accounts[3];
 
   it("should create proposals array in storage", function() {
-    var names = ['Ivan','Peter','Nikolaus'];
+    var names = ['Ivan','Peter','Nikolaus']; // имена кандидатов
+    var contractAddress;
 
     return Ballot.deployed(names).then(function(instance) {
-      console.log(instance);
-      console.log(typeof(instance.proposals));
-      var con = instance;
-      return con.proposals.call(0);
-      //contracAddress = instance.address;
-      //return instance.Ballot(names);
-    }).then(function(t) {
-      console.log('t:'); console.log(t);
-      assert.deepEqual(1, 2, "Список кандидатов сохранен не точно");
-      /*console.log('contractAddress '+contractAddress);
-      var ballot = Ballot.at(contracAddress);
-      console.log(ballot.proposals);
-      assert.deepEqual(ballot.proposals, names, "Список кандидатов сохранен не точно");*/
-    }).catch(function(arg){
-      console.log(arg)
-    });
+      contractAddress = instance.address;
+      //return instance.startBallot(names); //задаем массив имен кандидатов
+      return instance.proposals.call(0) //выбираем первого кандидата
+    }).then(function(nameVotes0) {
+      console.log(nameVotes0); console.log(nameVotes0[0]);
+      assert.equal(nameVotes.name, names[0], "Кандидат 1 не совпадает");
+    })
   });
+
+  /*it("should set deployer as chairperson", function() {
+    return Ballot.deployed().then(function(instance) {
+      console.log(instance);
+      assert.equal(instance.chairperson, names, "Выложивший контракт не стал председателем");
+    })
+  });*/
 
   /*it("should call a function that depends on a linked library", function() {
     var meta;
